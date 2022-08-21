@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "smarthome"
+version = "0.1.0"
+description = ""
+authors = ["cody <sebastian.kotulla@gmail.com>"]
+packages = [
+    { include = "smarthome", from = "." }
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+aiohttp = "^3.8.1"
+httpx = "^0.23.0"
+wakeonlan = "^2.1.0"
+aioconsole = "0.5.0"
+python-dateutil = "2.8.2"
+paho-mqtt = "1.6.1"
+suntime = "1.2.5"
+python-telegram-bot = "13.13"
+asyncpg = "0.26.0"
+influxdb = "5.3.1"
+
+[tool.poetry.scripts]
+smarthome = 'smarthome.smarthome_async:main'
+smarthome-file = 'smarthome.file:main'
+smarthome-postgres = 'smarthome.postgres:main'
+smarthome-influx = 'smarthome.influx:main'
+smarthome-energy = 'smarthome.energy:main'
