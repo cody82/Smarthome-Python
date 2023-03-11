@@ -60,27 +60,65 @@ async def wait_for_excess(meter_subscription, min = -10000000, max = 10000000, d
     start_time = datetime.now()
     while(True):
         msg = (await meter_subscription.get())
-        js = msg.json()
+        try:
+            js = msg.json()
+            net_power = js["MT681"]["Power_cur"]
+        except:
+            continue
         now = datetime.now()
-        net_power = js["MT681"]["Power_cur"]
         if min <= net_power <= max:
             if now - start_time > delta:
                 return
         else:
             start_time = now
 
+CHARGE_FINISH = 1
+NO_EXCESS = 2
+async def wait_for_excess_or_charge_finish(meter_subscription, min = -10000000, max = 10000000, delta = timedelta(minutes = 1)):
+    start_time = datetime.now()
+    charge_start = datetime.now()
+    charge_power = net_power = None
+    while(True):
+        msg = (await meter_subscription.get())
+        try:
+            js = msg.json()
+        except:
+            continue
+        now = datetime.now()
+        if "MT681" in js:
+            net_power = js["MT681"]["Power_cur"]
+        elif "power" in js:
+            charge_power = js["power"]
+
+        if net_power is not None:
+            if min <= net_power <= max:
+                if now - start_time > delta:
+                    return NO_EXCESS
+            else:
+                    start_time = now
+
+        if charge_power is not None:
+            if charge_power < 60:
+                if now - charge_start > delta:
+                    return CHARGE_FINISH
+            else:
+                charge_start = now
+
 def queue_clear(q):
     while not q.empty():
         q.get_nowait()
 
 async def excess_charge2():
-    meter_subscription = mqtt.subscribe(METER_TOPIC)
+    subscription = mqtt.subscribe([METER_TOPIC, CHARGER_TOPIC])
     while(True):
-        queue_clear(meter_subscription)
+        queue_clear(subscription)
         log.info("E-Bike: Wait for excess power...")
-        await wait_for_excess(meter_subscription, max = -50)
+        await wait_for_excess(subscription, max = -80)
         log.info("E-Bike: Start charging.")
         charge(True)
-        await wait_for_excess(meter_subscription, min = 10, delta = timedelta(minutes = 1))
-        log.info("E-Bike: Stop charging.")
+        ret = await wait_for_excess_or_charge_finish(subscription, min = 10, delta = timedelta(minutes = 1))
+        log.info(f"E-Bike: Stop charging: {ret}")
         charge(False)
+        if ret == CHARGE_FINISH:
+            log.info("E-Bike: Battery full, waiting 24h...")
+            await asyncio.sleep(24*60*60)
